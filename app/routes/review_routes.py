@@ -12,6 +12,7 @@ router = APIRouter(include_in_schema=False)
 
 templates_path = settings.BASE_DIR / "app" / "templates"
 templates = Jinja2Templates(directory=str(templates_path))
+templates.env.cache = None
 
 @router.get("/")
 def index():
@@ -19,20 +20,26 @@ def index():
 
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard_page(request: Request):
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "active_tab": "dashboard",
-        "high_value_threshold": settings.HIGH_VALUE_THRESHOLD,
-        "ai_provider": settings.AI_PROVIDER
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="dashboard.html",
+        context={
+            "active_tab": "dashboard",
+            "high_value_threshold": settings.HIGH_VALUE_THRESHOLD,
+            "ai_provider": settings.AI_PROVIDER
+        }
+    )
 
 @router.get("/upload", response_class=HTMLResponse)
 def upload_page(request: Request):
-    return templates.TemplateResponse("upload.html", {
-        "request": request,
-        "active_tab": "upload",
-        "max_size_mb": settings.MAX_UPLOAD_SIZE_MB
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="upload.html",
+        context={
+            "active_tab": "upload",
+            "max_size_mb": settings.MAX_UPLOAD_SIZE_MB
+        }
+    )
 
 @router.get("/invoices/{invoice_id}", response_class=HTMLResponse)
 def invoice_detail_page(invoice_id: int, request: Request, db: Session = Depends(get_db)):
@@ -47,12 +54,15 @@ def invoice_detail_page(invoice_id: int, request: Request, db: Session = Depends
         except Exception:
             validation = {"status": invoice.status, "checks": {}, "errors": [], "warnings": []}
 
-    return templates.TemplateResponse("invoice_detail.html", {
-        "request": request,
-        "invoice": invoice,
-        "validation": validation,
-        "active_tab": "invoices"
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="invoice_detail.html",
+        context={
+            "invoice": invoice,
+            "validation": validation,
+            "active_tab": "invoices"
+        }
+    )
 
 @router.get("/invoices/{invoice_id}/review", response_class=HTMLResponse)
 def review_page(invoice_id: int, request: Request, db: Session = Depends(get_db)):
@@ -67,9 +77,12 @@ def review_page(invoice_id: int, request: Request, db: Session = Depends(get_db)
         except Exception:
             validation = {"status": invoice.status, "checks": {}, "errors": [], "warnings": []}
 
-    return templates.TemplateResponse("review.html", {
-        "request": request,
-        "invoice": invoice,
-        "validation": validation,
-        "active_tab": "review"
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="review.html",
+        context={
+            "invoice": invoice,
+            "validation": validation,
+            "active_tab": "review"
+        }
+    )
