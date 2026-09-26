@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}Review & Edit Invoice #{{ invoice.invoice_number or invoice.id }} - AI Agent{% endblock %}
+{% block page_title %}Human-in-the-Loop Invoice Review{% endblock %}
+{% block page_subtitle %}Review extracted fields, correct discrepancies, and trigger real-time re-validation{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="/invoices/{{ invoice.id }}" class="btn btn-outline btn-sm">
+            <i class="fa-solid fa-arrow-left"></i> Invoice Details
+        </a>
+        <h2 style="font-size: 20px; font-weight: 700; color: #fff;">
+            Review Invoice: {{ invoice.invoice_number or 'Unidentified' }}
+        </h2>
+        <span id="header-status-badge" class="badge {% if invoice.status == 'VALID' %}badge-valid{% elif invoice.status == 'FLAGGED' %}badge-flagged{% elif invoice.status == 'REVIEW_REQUIRED' %}badge-review{% elif invoice.status == 'APPROVED' %}badge-approved{% else %}badge-rejected{% endif %}">
+            {{ invoice.status }}
+        </span>
+    </div>
+    
+    <div style="display: flex; gap: 10px;">
+        <button type="button" class="btn btn-primary" onclick="saveAndRevalidate({{ invoice.id }})">
+            <i class="fa-solid fa-floppy-disk"></i> Save Changes & Re-validate
+        </button>
+        <button type="button" class="btn btn-success" onclick="approveCurrentInvoice({{ invoice.id }})">
+            <i class="fa-solid fa-check"></i> Approve
+        </button>
+        <button type="button" class="btn btn-danger" onclick="rejectCurrentInvoice({{ invoice.id }})">
+            <i class="fa-solid fa-xmark"></i> Reject
+        </button>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+    <!-- Left Column: Editable Invoice Form -->
+    <div>
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-pen-to-square text-primary"></i>
+                    <span>Header Information</span>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;">
+                    <div class="form-group">
+                        <label class="form-label" for="edit-vendor">Vendor Name *</label>
+                        <input type="text" id="edit-vendor" class="form-control" value="{{ invoice.vendor_name or '' }}" placeholder="Enter Vendor / Supplier Name">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="edit-inv-number">Invoice Number *</label>
+                        <input type="text" id="edit-inv-number" class="form-control" value="{{ invoice.invoice_number or '' }}" placeholder="e.g. INV-2026-001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="edit-date">Invoice Date (YYYY-MM-DD) *</label>
+                        <input type="text" id="edit-date" class="form-control" value="{{ invoice.invoice_date or '' }}" placeholder="YYYY-MM-DD">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="edit-currency">Currency Code</label>
+                        <input type="text" id="edit-currency" class="form-control" value="{{ invoice.currency or 'INR' }}" placeholder="INR, USD, EUR">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editable Line Items -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Line Items</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline" onclick="addLineItemRow()">
+                    <i class="fa-solid fa-plus"></i> Add Line Item
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="custom-table" id="line-items-edit-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 45%;">DESCRIPTION</th>
+                            <th style="width: 15%; text-align: right;">QTY</th>
+                            <th style="width: 20%; text-align: right;">UNIT PRICE (₹)</th>
+                            <th style="width: 15%; text-align: right;">AMOUNT (₹)</th>
+                            <th style="width: 5%;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="line-items-tbody">
+                        {% for item in invoice.items %}
+                        <tr class="item-row">
+                            <td>
+                                <input type="text" class="form-control item-desc" value="{{ item.description }}" placeholder="Item description" style="padding: 6px 10px; font-size: 13px;">
+                            </td>
+                            <td>
+                                <input type="number" step="any" class="form-control item-qty" value="{{ item.quantity }}" style="text-align: right; padding: 6px 10px; font-size: 13px;" oninput="recalcRow(this)">
+                            </td>
+                            <td>
+                                <input type="number" step="any" class="form-control item-price" value="{{ item.unit_price }}" style="text-align: right; padding: 6px 10px; font-size: 13px;" oninput="recalcRow(this)">
+                            </td>
+                            <td>
+                                <input type="number" step="any" class="form-control item-amount" value="{{ item.amount }}" style="text-align: right; padding: 6px 10px; font-size: 13px; font-weight: 600;" oninput="updateFinancials()">
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm" style="color: var(--danger); padding: 4px;" onclick="removeLineItemRow(this)" title="Delete Item">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Editable Financial Summary -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-calculator"></i>
+                    <span>Financial Totals Verification</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline" onclick="autoCalculateTotals()">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Balance Totals
+                </button>
+            </div>
+            <div class="panel-body">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;">
+                    <div class="form-group">
+                        <label class="form-label" for="edit-subtotal">Subtotal (₹)</label>
+                        <input type="number" step="any" id="edit-subtotal" class="form-control" value="{{ invoice.subtotal if invoice.subtotal is not none else '' }}" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="edit-tax">Tax Amount (₹)</label>
+                        <input type="number" step="any" id="edit-tax" class="form-control" value="{{ invoice.tax if invoice.tax is not none else '' }}" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="edit-total">Grand Total (₹) *</label>
+                        <input type="number" step="any" id="edit-total" class="form-control" value="{{ invoice.total if invoice.total is not none else '' }}" placeholder="0.00" style="font-weight: 700; color: #fff;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Real-time Validation Engine Audit Panel -->
+    <div>
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-microchip text-primary"></i>
+                    <span>Live Validation Checklist</span>
+                </div>
+            </div>
+            <div class="panel-body" id="live-validation-box">
+                <!-- Checklist -->
+                <div class="check-item {% if validation.checks and validation.checks.required_fields == 'PASS' %}pass{% else %}fail{% endif %}" id="chk-required">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.required_fields == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Required Fields</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.required_fields == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}" id="badge-chk-required">
+                        {{ validation.checks.required_fields if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.line_items == 'PASS' %}pass{% else %}fail{% endif %}" id="chk-items">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.line_items == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Line Item Calculations</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.line_items == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}" id="badge-chk-items">
+                        {{ validation.checks.line_items if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.subtotal == 'PASS' %}pass{% else %}fail{% endif %}" id="chk-subtotal">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.subtotal == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Subtotal Sum</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.subtotal == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}" id="badge-chk-subtotal">
+                        {{ validation.checks.subtotal if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.tax == 'PASS' %}pass{% else %}fail{% endif %}" id="chk-tax">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.tax == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Tax Verification</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.tax == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}" id="badge-chk-tax">
+                        {{ validation.checks.tax if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.total == 'PASS' %}pass{% else %}fail{% endif %}" id="chk-total">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.total == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Total Match</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.total == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}" id="badge-chk-total">
+                        {{ validation.checks.total if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.date == 'PASS' %}pass{% else %}fail{% endif %}" id="chk-date">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.date == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Date Validity</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.date == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}" id="badge-chk-date">
+                        {{ validation.checks.date if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <!-- Errors Container -->
+                <div id="live-errors-container" style="margin-top: 20px;">
+                    {% if validation.errors %}
+                    <div class="form-label" style="color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Discrepancies:</div>
+                    {% for err in validation.errors %}
+                    <div class="alert-box alert-danger" style="margin-bottom: 8px; padding: 10px 12px;">
+                        <span>{{ err }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/review.js"></script>
+{% endblock %}

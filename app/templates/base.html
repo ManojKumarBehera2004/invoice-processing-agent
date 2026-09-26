@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Document & Invoice Processing Agent{% endblock %}</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Application CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-microchip"></i>
+                </div>
+                <div class="brand-text">
+                    <h2>InvoiceAI<span class="brand-badge">AGENT</span></h2>
+                    <p>Automated Extraction & Validation</p>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section-title">CORE AGENT</div>
+                <a href="/dashboard" class="nav-link {% if active_tab == 'dashboard' %}active{% endif %}">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/upload" class="nav-link {% if active_tab == 'upload' %}active{% endif %}">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>Upload Invoice</span>
+                </a>
+                
+                <div class="nav-section-title">SYSTEM</div>
+                <a href="/docs" target="_blank" class="nav-link">
+                    <i class="fa-solid fa-code"></i>
+                    <span>API Docs (Swagger)</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="agent-status-card">
+                    <div class="status-indicator-dot online"></div>
+                    <div class="agent-status-info">
+                        <span class="agent-title">Agent Engine</span>
+                        <span class="agent-sub">Online & Ready</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Navigation Bar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+                    <span class="page-subtitle">{% block page_subtitle %}Real-time invoice extraction and validation monitoring{% endblock %}</span>
+                </div>
+                <div class="topbar-right">
+                    <div class="system-chip">
+                        <i class="fa-solid fa-brain"></i>
+                        <span>AI Provider: <strong>{{ ai_provider|default('Gemini')|upper }}</strong></span>
+                    </div>
+                    <a href="/upload" class="btn btn-primary btn-sm">
+                        <i class="fa-solid fa-plus"></i> New Upload
+                    </a>
+                </div>
+            </header>
+
+            <!-- Page Body -->
+            <div class="content-body">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Application JavaScript Base -->
+    <script>
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            const icons = {
+                success: 'fa-circle-check',
+                error: 'fa-circle-exclamation',
+                warning: 'fa-triangle-exclamation',
+                info: 'fa-circle-info'
+            };
+            toast.innerHTML = `
+                <i class="fa-solid ${icons[type] || icons.info}"></i>
+                <div class="toast-content">${message}</div>
+                <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 400);
+            }, 4500);
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

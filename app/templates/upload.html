@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Invoice - AI Document & Invoice Processing Agent{% endblock %}
+{% block page_title %}Document Ingestion & Processing{% endblock %}
+{% block page_subtitle %}Multi-modal document parser with PyMuPDF, Tesseract OCR, and AI Extraction{% endblock %}
+
+{% block content %}
+<div style="max-width: 860px; margin: 0 auto;">
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa-solid fa-cloud-arrow-up text-primary"></i>
+                <span>Upload Invoice Document</span>
+            </div>
+            <span style="font-size: 12px; color: var(--text-muted);">Max file size: {{ max_size_mb }}MB</span>
+        </div>
+        <div class="panel-body">
+            <!-- Drag and drop zone -->
+            <div class="upload-dropzone" id="dropzone" onclick="document.getElementById('file-input').click()">
+                <input type="file" id="file-input" style="display: none;" accept=".pdf,.jpg,.jpeg,.png">
+                <div class="upload-icon">
+                    <i class="fa-solid fa-file-arrow-up"></i>
+                </div>
+                <div class="upload-title" id="dropzone-title">Drag and drop invoice document here</div>
+                <div class="upload-subtitle" id="dropzone-subtitle">or click to browse from your device</div>
+                <div class="format-tags">
+                    <span class="format-tag">PDF</span>
+                    <span class="format-tag">JPG</span>
+                    <span class="format-tag">JPEG</span>
+                    <span class="format-tag">PNG</span>
+                </div>
+            </div>
+
+            <!-- Selected File Information Bar -->
+            <div id="file-info-bar" style="display: none; margin-top: 20px; padding: 14px 18px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: var(--radius-sm); align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fa-solid fa-file-pdf" style="font-size: 24px; color: var(--primary);" id="file-type-icon"></i>
+                    <div>
+                        <div id="selected-file-name" style="font-weight: 600; font-size: 14px;"></div>
+                        <div id="selected-file-size" style="font-size: 12px; color: var(--text-muted);"></div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="btn-process-invoice" onclick="startProcessing()">
+                    <i class="fa-solid fa-bolt"></i> Process Invoice
+                </button>
+            </div>
+
+            <!-- Pipeline Tracker (Shown during processing) -->
+            <div id="pipeline-tracker-box" style="display: none; margin-top: 35px;">
+                <h3 style="font-size: 14px; font-weight: 700; color: var(--text-secondary); text-align: center; margin-bottom: 20px;">
+                    AUTONOMOUS AGENT PROCESSING PIPELINE
+                </h3>
+                <div class="pipeline-tracker">
+                    <div class="step-node" id="step-upload">
+                        <div class="step-circle"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                        <div class="step-title">Upload & Validation</div>
+                    </div>
+                    <div class="step-node" id="step-ocr">
+                        <div class="step-circle"><i class="fa-solid fa-file-lines"></i></div>
+                        <div class="step-title">Text & OCR</div>
+                    </div>
+                    <div class="step-node" id="step-ai">
+                        <div class="step-circle"><i class="fa-solid fa-brain"></i></div>
+                        <div class="step-title">AI Extraction</div>
+                    </div>
+                    <div class="step-node" id="step-val">
+                        <div class="step-circle"><i class="fa-solid fa-clipboard-check"></i></div>
+                        <div class="step-title">Calculations & Rules</div>
+                    </div>
+                    <div class="step-node" id="step-done">
+                        <div class="step-circle"><i class="fa-solid fa-check"></i></div>
+                        <div class="step-title">Storage & Alerts</div>
+                    </div>
+                </div>
+
+                <!-- Live Status Message -->
+                <div style="text-align: center; margin-top: 25px;">
+                    <div id="status-live-message" style="font-size: 15px; font-weight: 600; color: var(--primary);">
+                        <i class="fa-solid fa-spinner fa-spin"></i> Preparing document ingestion...
+                    </div>
+                </div>
+
+                <!-- Final Action Box -->
+                <div id="processing-complete-card" style="display: none; margin-top: 30px; padding: 24px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-md); text-align: center;">
+                    <i class="fa-solid fa-circle-check" style="font-size: 42px; color: var(--success); margin-bottom: 12px;"></i>
+                    <h3 style="font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 6px;">Processing Complete ✓</h3>
+                    <p id="result-summary-text" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
+                        The agent has successfully extracted, validated, and persisted the invoice records.
+                    </p>
+                    <div style="display: flex; gap: 12px; justify-content: center;">
+                        <a id="btn-view-result" href="#" class="btn btn-success">
+                            <i class="fa-solid fa-eye"></i> View Invoice
+                        </a>
+                        <a href="/upload" class="btn btn-outline">
+                            <i class="fa-solid fa-arrow-rotate-right"></i> Process Another
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Sample Download & Test Helpers for Evaluation -->
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa-solid fa-folder-open"></i>
+                <span>Sample Invoices for Testing & Evaluation</span>
+            </div>
+        </div>
+        <div class="panel-body">
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                You can use our pre-generated sample invoice files below to test extraction and validation rules directly without creating your own documents:
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;" id="sample-buttons-container">
+                <button class="btn btn-outline btn-sm" onclick="loadSampleFile('valid')">
+                    <i class="fa-solid fa-file-pdf"></i> Valid Invoice
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="loadSampleFile('mismatch')">
+                    <i class="fa-solid fa-triangle-exclamation" style="color: var(--danger);"></i> Calculation Mismatch
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="loadSampleFile('highvalue')">
+                    <i class="fa-solid fa-shield-halved" style="color: var(--purple);"></i> High-Value Invoice
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="loadSampleFile('missing')">
+                    <i class="fa-solid fa-circle-question" style="color: var(--warning);"></i> Missing Fields
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/upload.js"></script>
+{% endblock %}

@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice #{{ invoice.invoice_number or invoice.id }} - AI Document & Invoice Processing Agent{% endblock %}
+{% block page_title %}Invoice Details & Validation Audit{% endblock %}
+{% block page_subtitle %}Comprehensive extraction audit, line items, and automated discrepancy checks{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="/dashboard" class="btn btn-outline btn-sm">
+            <i class="fa-solid fa-arrow-left"></i> Dashboard
+        </a>
+        <h2 style="font-size: 20px; font-weight: 700; color: #fff;">
+            Invoice: {{ invoice.invoice_number or 'Unidentified' }}
+        </h2>
+        {% if invoice.status == 'VALID' %}
+            <span class="badge badge-valid"><i class="fa-solid fa-circle-check"></i> VALID</span>
+        {% elif invoice.status == 'FLAGGED' %}
+            <span class="badge badge-flagged"><i class="fa-solid fa-triangle-exclamation"></i> FLAGGED</span>
+        {% elif invoice.status == 'REVIEW_REQUIRED' %}
+            <span class="badge badge-review"><i class="fa-solid fa-clock-rotate-left"></i> REVIEW REQUIRED</span>
+        {% elif invoice.status == 'APPROVED' %}
+            <span class="badge badge-approved"><i class="fa-solid fa-check-double"></i> APPROVED</span>
+        {% elif invoice.status == 'REJECTED' %}
+            <span class="badge badge-rejected"><i class="fa-solid fa-xmark"></i> REJECTED</span>
+        {% else %}
+            <span class="badge">{{ invoice.status }}</span>
+        {% endif %}
+
+        {% if invoice.high_value %}
+            <span class="badge badge-highval"><i class="fa-solid fa-gem"></i> High Value</span>
+        {% endif %}
+    </div>
+    
+    <div style="display: flex; gap: 10px;">
+        <a href="/invoices/{{ invoice.id }}/review" class="btn btn-primary">
+            <i class="fa-solid fa-pen-to-square"></i> Review / Edit Invoice
+        </a>
+        <button class="btn btn-success" onclick="approveInvoice({{ invoice.id }})">
+            <i class="fa-solid fa-check"></i> Approve
+        </button>
+        <button class="btn btn-danger" onclick="rejectInvoice({{ invoice.id }})">
+            <i class="fa-solid fa-xmark"></i> Reject
+        </button>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+    <!-- Left Column: Invoice Header & Line Items -->
+    <div>
+        <!-- Key Metadata Card -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-file-lines text-primary"></i>
+                    <span>Extracted Metadata</span>
+                </div>
+                <span style="font-size: 11px; color: var(--text-muted);">
+                    Extraction Engine: <strong>{{ invoice.extraction_mode or 'AI' }}</strong>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;">
+                    <div>
+                        <span class="form-label">Vendor Name</span>
+                        <div style="font-size: 15px; font-weight: 600; color: #fff;">
+                            {{ invoice.vendor_name or '<span style="color: var(--danger);">[Not Detected]</span>'|safe }}
+                        </div>
+                    </div>
+                    <div>
+                        <span class="form-label">Invoice Number</span>
+                        <div style="font-size: 15px; font-weight: 600; color: #fff;">
+                            {{ invoice.invoice_number or '<span style="color: var(--danger);">[Not Detected]</span>'|safe }}
+                        </div>
+                    </div>
+                    <div>
+                        <span class="form-label">Invoice Date</span>
+                        <div style="font-size: 15px; font-weight: 600; color: #fff;">
+                            {{ invoice.invoice_date or '<span style="color: var(--danger);">[Not Detected]</span>'|safe }}
+                        </div>
+                    </div>
+                    <div>
+                        <span class="form-label">Currency</span>
+                        <div style="font-size: 15px; font-weight: 600; color: #fff;">
+                            {{ invoice.currency or 'INR' }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Line Items Table -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-table-list"></i>
+                    <span>Line Items ({{ invoice.items|length }})</span>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>DESCRIPTION</th>
+                            <th style="text-align: right;">QUANTITY</th>
+                            <th style="text-align: right;">UNIT PRICE</th>
+                            <th style="text-align: right;">AMOUNT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if invoice.items %}
+                            {% for item in invoice.items %}
+                            <tr>
+                                <td>{{ item.description }}</td>
+                                <td style="text-align: right;">{{ item.quantity }}</td>
+                                <td style="text-align: right;">₹{{ "%.2f"|format(item.unit_price) }}</td>
+                                <td style="text-align: right; font-weight: 600;">₹{{ "%.2f"|format(item.amount) }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" style="text-align: center; padding: 24px; color: var(--text-muted);">
+                                    No individual line items parsed from this invoice.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Financial Summary Card -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-calculator"></i>
+                    <span>Financial Totals</span>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div style="display: flex; flex-direction: column; gap: 10px; max-width: 320px; margin-left: auto;">
+                    <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                        <span style="color: var(--text-secondary);">Subtotal:</span>
+                        <span style="font-weight: 600; color: #fff;">
+                            {% if invoice.subtotal is not none %}₹{{ "%.2f"|format(invoice.subtotal) }}{% else %}<span style="color: var(--text-muted);">N/A</span>{% endif %}
+                        </span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                        <span style="color: var(--text-secondary);">Tax / GST:</span>
+                        <span style="font-weight: 600; color: #fff;">
+                            {% if invoice.tax is not none %}₹{{ "%.2f"|format(invoice.tax) }}{% else %}<span style="color: var(--text-muted);">N/A</span>{% endif %}
+                        </span>
+                    </div>
+                    <div style="border-top: 1px solid var(--border-color); padding-top: 10px; display: flex; justify-content: space-between; font-size: 17px;">
+                        <span style="font-weight: 700; color: #fff;">Grand Total:</span>
+                        <span style="font-weight: 800; color: var(--primary);">
+                            {% if invoice.total is not none %}₹{{ "%.2f"|format(invoice.total) }}{% else %}<span style="color: var(--danger);">Missing</span>{% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Validation Audit & Rules Breakdown -->
+    <div>
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-list-check text-success"></i>
+                    <span>Validation Engine Results</span>
+                </div>
+            </div>
+            <div class="panel-body">
+                <!-- Check items -->
+                <div class="check-item {% if validation.checks and validation.checks.required_fields == 'PASS' %}pass{% else %}fail{% endif %}">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.required_fields == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Required Fields</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.required_fields == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}">
+                        {{ validation.checks.required_fields if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.line_items == 'PASS' %}pass{% else %}fail{% endif %}">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.line_items == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Line Item Calculations</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.line_items == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}">
+                        {{ validation.checks.line_items if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.subtotal == 'PASS' %}pass{% else %}fail{% endif %}">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.subtotal == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Subtotal Sum</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.subtotal == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}">
+                        {{ validation.checks.subtotal if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.tax == 'PASS' %}pass{% else %}fail{% endif %}">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.tax == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Tax Verification</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.tax == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}">
+                        {{ validation.checks.tax if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.total == 'PASS' %}pass{% else %}fail{% endif %}">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.total == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Total Sum Match</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.total == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}">
+                        {{ validation.checks.total if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <div class="check-item {% if validation.checks and validation.checks.date == 'PASS' %}pass{% else %}fail{% endif %}">
+                    <div class="check-item-name">
+                        <i class="fa-solid {% if validation.checks and validation.checks.date == 'PASS' %}fa-circle-check text-success{% else %}fa-circle-xmark text-danger{% endif %} check-icon"></i>
+                        <span>Date Validity</span>
+                    </div>
+                    <span class="badge {% if validation.checks and validation.checks.date == 'PASS' %}badge-valid{% else %}badge-flagged{% endif %}">
+                        {{ validation.checks.date if validation.checks else 'N/A' }}
+                    </span>
+                </div>
+
+                <!-- Errors Breakdown List -->
+                {% if validation.errors %}
+                <div style="margin-top: 20px;">
+                    <div class="form-label" style="color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> Discrepancies & Calculation Errors:</div>
+                    {% for err in validation.errors %}
+                    <div class="alert-box alert-danger" style="margin-bottom: 8px; padding: 10px 12px;">
+                        <span>{{ err }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Warnings List -->
+                {% if validation.warnings %}
+                <div style="margin-top: 16px;">
+                    <div class="form-label" style="color: var(--warning);"><i class="fa-solid fa-circle-exclamation"></i> Warnings:</div>
+                    {% for warn in validation.warnings %}
+                    <div class="alert-box alert-warning" style="margin-bottom: 8px; padding: 10px 12px;">
+                        <span>{{ warn }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Document File Info -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i class="fa-solid fa-file-arrow-down"></i>
+                    <span>Source Document</span>
+                </div>
+            </div>
+            <div class="panel-body" style="font-size: 13px;">
+                <p style="margin-bottom: 8px;"><strong>File:</strong> {{ invoice.source_filename }}</p>
+                <p style="margin-bottom: 16px; color: var(--text-muted);">Uploaded: {{ invoice.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                <a href="/uploads/{{ invoice.file_path.split('/')[-1].split('\\')[-1] }}" target="_blank" class="btn btn-outline btn-sm" style="width: 100%;">
+                    <i class="fa-solid fa-magnifying-glass"></i> View Original Document
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function approveInvoice(id) {
+    try {
+        const res = await fetch(`/api/invoices/${id}/approve`, { method: 'POST' });
+        if (!res.ok) throw new Error("Approval failed");
+        showToast("Invoice marked as APPROVED!", "success");
+        setTimeout(() => location.reload(), 800);
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
+async function rejectInvoice(id) {
+    try {
+        const res = await fetch(`/api/invoices/${id}/reject`, { method: 'POST' });
+        if (!res.ok) throw new Error("Rejection failed");
+        showToast("Invoice marked as REJECTED.", "info");
+        setTimeout(() => location.reload(), 800);
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+</script>
+{% endblock %}

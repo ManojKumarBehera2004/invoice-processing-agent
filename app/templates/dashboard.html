@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Document & Invoice Processing Agent{% endblock %}
+{% block page_title %}Invoice Processing Operations{% endblock %}
+{% block page_subtitle %}Real-time intelligent extraction, validation metrics, and discrepancy monitoring{% endblock %}
+
+{% block content %}
+<!-- Metric Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon total"><i class="fa-solid fa-file-invoice"></i></div>
+        <div class="stat-details">
+            <span class="stat-label">TOTAL INVOICES</span>
+            <span class="stat-value" id="stat-total">0</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon valid"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="stat-details">
+            <span class="stat-label">VALID INVOICES</span>
+            <span class="stat-value" id="stat-valid">0</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon flagged"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="stat-details">
+            <span class="stat-label">FLAGGED (ERRORS)</span>
+            <span class="stat-value" id="stat-flagged">0</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon review"><i class="fa-solid fa-clock-rotate-left"></i></div>
+        <div class="stat-details">
+            <span class="stat-label">REVIEW REQUIRED</span>
+            <span class="stat-value" id="stat-review">0</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon highval"><i class="fa-solid fa-shield-halved"></i></div>
+        <div class="stat-details">
+            <span class="stat-label">HIGH VALUE (≥ ₹100k)</span>
+            <span class="stat-value" id="stat-highval">0</span>
+        </div>
+    </div>
+</div>
+
+<!-- Secondary Actions & Live Alerts Row -->
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px;">
+    <!-- Live Alerts Panel -->
+    <div class="panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa-solid fa-bell text-warning"></i>
+                <span>Agent Discrepancy & High-Value Alerts</span>
+            </div>
+            <span class="badge badge-highval" id="alert-count-badge">0 Alerts</span>
+        </div>
+        <div class="panel-body" style="padding: 16px; max-height: 220px; overflow-y: auto;" id="alerts-container">
+            <div style="color: var(--text-muted); text-align: center; padding: 20px;">
+                No system alerts recorded yet.
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Demonstration Tools -->
+    <div class="panel" style="margin-bottom: 0;">
+        <div class="panel-header">
+            <div class="panel-title">
+                <i class="fa-solid fa-flask"></i>
+                <span>Demo Evaluation Kit</span>
+            </div>
+        </div>
+        <div class="panel-body" style="display: flex; flex-direction: column; gap: 12px; justify-content: center;">
+            <p style="font-size: 13px; color: var(--text-secondary);">
+                Instantly seed pre-configured evaluation test cases (Valid, Calculation Mismatch, High-Value, Missing Fields) for your demonstration video.
+            </p>
+            <button class="btn btn-outline" id="btn-seed-demo" onclick="seedDemoCases()">
+                <i class="fa-solid fa-database"></i> Load 4 Sample Evaluation Cases
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Invoices Panel -->
+<div class="panel">
+    <div class="panel-header">
+        <div class="panel-title">
+            <i class="fa-solid fa-list-check"></i>
+            <span>Processed Invoices Pipeline</span>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <!-- Filter Pills -->
+            <div style="display: flex; gap: 6px;" id="filter-pills">
+                <button class="btn btn-sm btn-outline active" onclick="setFilter('ALL', this)">All</button>
+                <button class="btn btn-sm btn-outline" onclick="setFilter('VALID', this)">Valid</button>
+                <button class="btn btn-sm btn-outline" onclick="setFilter('FLAGGED', this)">Flagged</button>
+                <button class="btn btn-sm btn-outline" onclick="setFilter('REVIEW_REQUIRED', this)">Review Req.</button>
+                <button class="btn btn-sm btn-outline" onclick="setFilter('APPROVED', this)">Approved</button>
+            </div>
+            <!-- Search input -->
+            <input type="text" id="search-input" class="form-control" placeholder="Search invoice or vendor..." style="width: 220px; padding: 6px 12px; font-size: 13px;" oninput="filterInvoices()">
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="custom-table" id="invoices-table">
+            <thead>
+                <tr>
+                    <th>INVOICE #</th>
+                    <th>VENDOR</th>
+                    <th>DATE</th>
+                    <th>TOTAL</th>
+                    <th>STATUS</th>
+                    <th>HIGH VALUE</th>
+                    <th>ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody id="invoices-tbody">
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                        Loading processed invoices...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}
